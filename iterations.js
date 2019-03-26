@@ -59,7 +59,7 @@ function Ui(canvas) {
     const scaleX = (x, xmax) => (x / xmax) * xUsableSpace;
     const offsetX = (x) => x + startXmargin;
     const scaleY = (y, ymax) => (y / ymax) * yUsableSpace;
-    const offsetY = (y) => (y + yUsableSpace / 2) % yUsableSpace;
+    const offsetY = (y) => (y + yUsableSpace / 2);
     const scale = (point, maximums) => ({
         x: offsetX(scaleX(point.x, maximums.x)),
         y: offsetY(scaleY(point.y, maximums.y))
@@ -81,14 +81,14 @@ function Ui(canvas) {
     };
 }
 
-function textUpdater(element) {
-    return (state) => {
-        element.innerHTML = `
-            Cycle length (days): ${state.playerParameters.cycleLengthInDays}. 
-            Iteration: ${state.iteration}. 
-            DistanceToFinish: ${Math.round(state.distanceToFinish)}. 
-            Days: ${state.day}.`;
-    }
+function playerUiUpdate(state) {
+    state.gameParameters.ui.drawProgress(
+        state.prevPos, state.currentPos, state.maximums, state.playerParameters.color);
+    state.playerParameters.element.innerHTML = `
+        Cycle length (days): ${state.playerParameters.cycleLengthInDays}. 
+        Iteration: ${state.iteration}. 
+        DistanceToFinish: ${Math.round(state.distanceToFinish)}. 
+        Days: ${state.day}.`;
 }
 
 function generateDirectionForNextIteration(interpretationPercent) {
@@ -140,22 +140,27 @@ function loadTick(gameParameters, playerParameters) {
             state.iteration++;
             state.prevPos = state.currentPos;
             state.currentPos = positionUpdater(state.currentPos, goal);
-            gameParameters.ui.drawProgress(state.prevPos, state.currentPos, state.maximums, playerParameters.color);
             state.distanceToFinish = distance(state.currentPos, goal);
-            playerParameters.callback(state);
+            playerUiUpdate(state);
         }
-        return state.distanceToFinish >= goalSize;
+        if (state.distanceToFinish >= goalSize) {
+            return true;
+        } else {
+            keepScore(state);
+            return false;
+        };
     }
     return tick;
 }
 
-function loop(ticks, periodMs, day = 0) {
+function loop(callback, ticks, periodMs, day = 0) {
     let remainingTicks = ticks.filter((tick) => tick(day));
     if (remainingTicks.length > 0) {
-        setTimeout(() => loop(remainingTicks, periodMs, day + 1), periodMs);
+        setTimeout(() => loop(callback, remainingTicks, periodMs, day + 1), periodMs);
+    } else {
+        callback();
     }
 }
-
 
 // Box-muller transform from https://jsfiddle.net/ssell/qzzvruc4/
 function gaussianRand() {
@@ -195,16 +200,74 @@ const addPlayer = (color, cycleLengthInDays) => {
     const element = document.createElement("div");
     element.style = `color: ${color}`;
     parentElement.appendChild(element);
-    const gameParameters = { cycleLengthInDays, color, callback: textUpdater(element) };
-    return gameParameters;
+    const playerParameters = { cycleLengthInDays, color, element };
+    return playerParameters;
 }
+
+let repeat = false;
 
 function start(gameParameters, cycleLengths) {
     gameParameters.ui = Ui(gameParameters.canvas);
     gameParameters.ui.init(gameParameters);
     gameParameters.results.innerHTML = "";
     const ticks = cycleLengths.map((cycleLength) => loadTick(gameParameters, addPlayer(generateColor(), cycleLength)));
-    loop(ticks, 10);
+    loop(() => { if (repeat && gameParameters.repeat){
+        start(gameParameters, cycleLengths);
+    }}, ticks, 10);
+}
+
+let scores = [];
+
+function formatScore(score) {
+    return `
+    <tr>
+        <td>${score.cycleLengthInDays} days</td>
+        <td>${score.runs}</td>
+        <td>${Math.round(score.averageDays)}</td>
+        <td>${Math.round(score.stddev)} days (${Math.round(score.stddev * 100 / score.averageDays)}%)</td>
+    </tr>`
+}
+
+function scoreTableHeader() {
+    return `
+    <tr>
+        <th>Cycle length in days</th>
+        <th>Runs</th>
+        <th>Average completion in days</th>
+        <th>Standard deviation</th>
+    </tr>`;
+}
+
+function calculateScores(history, cycleLengthInDays) {
+    const runs = history.length;
+    const averageDays = history.reduce((total, day) => total + day, 0) / runs;
+    const variance = history.reduce((total, day) => total + Math.pow(averageDays - day, 2), 0) / runs;
+    const stddev = Math.sqrt(variance);
+    return {
+        cycleLengthInDays,
+        averageDays,
+        runs,
+        variance,
+        stddev
+    };
+}
+
+function displayScores() {
+    const element = document.getElementById("scores");
+    element.innerHTML = 
+        scoreTableHeader() +
+        scores
+            .map(calculateScores)
+            .map(formatScore)
+            .join("");
+}
+
+function keepScore(state) {
+    const cycleLengthInDays = state.playerParameters.cycleLengthInDays;
+    if (!scores[cycleLengthInDays])
+        scores[cycleLengthInDays] = [];
+    scores[cycleLengthInDays].push(state.day);
+    displayScores();
 }
 
 function addInput(parentElement, preCaption, postCaption, properties) {
@@ -264,6 +327,10 @@ function load(rootElement) {
     configurationElement.appendChild(startButton);
     startButton.innerHTML = "Start";
 
+    const repeatButton = document.createElement("button");
+    configurationElement.appendChild(repeatButton);
+    repeatButton.innerHTML = "Repeat";
+
     const canvas = document.createElement("canvas");
     rootElement.appendChild(canvas);
     canvas.width = 700;
@@ -274,7 +341,17 @@ function load(rootElement) {
     rootElement.appendChild(results);
     results.id = "results";
 
-    startButton.onclick = () => {
+    const scoresTableElement = document.createElement("table");
+    rootElement.appendChild(scoresTableElement);
+    scoresTableElement.id = "scores";
+    scoresTableElement.border = 1;
+
+    scoresTableElement.style = "border-collapse: collapse";
+    const clearScoresButton = document.createElement("button");
+    rootElement.appendChild(clearScoresButton);
+    clearScoresButton.innerHTML = "Clear scores";
+
+    function launch(repeat = false) {
         const goal = goalInput.value;
         const goalSizePercent = goalSizeInput.value;
         const cycleLengths = cycleTimesInput.value.split(",").map((val) => val.trim());
@@ -284,8 +361,29 @@ function load(rootElement) {
             results,
             goal,
             goalSizePercent,
-            interpretationPercent
+            interpretationPercent,
+            repeat
          },
             cycleLengths);
+    }
+
+    startButton.onclick = () => {
+        launch();
+    }
+
+    repeatButton.onclick = () => {
+        if (repeat) {
+            repeat = false;
+            repeatButton.innerHTML = "Repeat";
+        } else {
+            repeatButton.innerHTML = "Stop";
+            repeat = true;
+            launch(true);
+        }
+    }
+
+    clearScoresButton.onclick = () => {
+        scores = [];
+        scoresTableElement.innerHTML = "";
     }
 }
