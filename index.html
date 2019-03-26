@@ -3,10 +3,12 @@
     <meta charset="utf-8"/>
 </head>
 <body>
-    <canvas id="canvas" width="1000" height="300" style="border: 1pt solid grey"></canvas>
+    <button id="start">Start</button>
+    <canvas id="canvas" width="700" height="700" style="border: 1pt solid grey"></canvas>
     <script src="iterations.js"></script>
     <div><span id="green"></span></div>
     <div><span id="blue"></span></div>
+    <div><span id="violet"></span></div>
     <div><span id="red"></span></div>
     <script>
         const ui = Ui();
@@ -15,9 +17,10 @@
         //const random = () => (Math.random() * mid - mid / 2) * Math.PI;
         const random = () => gaussianRand() * Math.PI;
         const ticks = [
-            loadTick(ui, gaussian(1, random), 1, "green", textUpdater(document.getElementById("green"))),
-            loadTick(ui, gaussian(7, random), 7, "blue", textUpdater(document.getElementById("blue"))),
-            loadTick(ui, gaussian(31, random), 31, "red", textUpdater(document.getElementById("red"))),
+            loadTick(ui, random, 1, "green", textUpdater(document.getElementById("green"))),
+            loadTick(ui, random, 7, "blue", textUpdater(document.getElementById("blue"))),
+            loadTick(ui, random, 14, "violet", textUpdater(document.getElementById("violet"))),
+            loadTick(ui, random, 31, "red", textUpdater(document.getElementById("red"))),
         ];
         loop(ticks, 10);
     </script>
