@@ -3,26 +3,34 @@
     <meta charset="utf-8"/>
 </head>
 <body>
-    <button id="start">Start</button>
+    <!-- <div>
+        <p>
+            How well can you determine what the customer need: 
+            <select>
+                <option id="gaussian">relatively well (natural distribution)</option>
+                <option id="random">relatively uncertain (Forward biased pseudo-random)</option>
+            </select>
+        </p>
+        <p>
+            How long would the project take in a straight line?
+            <input id="goal" type="number" value="200"></input> days
+        </p>
+        <p>
+            How precise a result does the customer need? (size of your goal)
+            <input id="goalSize" type="number" value="10"></input>%
+        </p>
+        <button id="start">Start</button>
+    </div>    
     <canvas id="canvas" width="700" height="700" style="border: 1pt solid grey"></canvas>
+    <div id="results">
+    </div> -->
+    <div id="game">
+        
+    </div>
     <script src="iterations.js"></script>
-    <div><span id="green"></span></div>
-    <div><span id="blue"></span></div>
-    <div><span id="violet"></span></div>
-    <div><span id="red"></span></div>
     <script>
-        const ui = Ui();
-        ui.init();
-        const mid = 1.5
-        //const random = () => (Math.random() * mid - mid / 2) * Math.PI;
-        const random = () => gaussianRand() * Math.PI;
-        const ticks = [
-            loadTick(ui, random, 1, "green", textUpdater(document.getElementById("green"))),
-            loadTick(ui, random, 7, "blue", textUpdater(document.getElementById("blue"))),
-            loadTick(ui, random, 14, "violet", textUpdater(document.getElementById("violet"))),
-            loadTick(ui, random, 31, "red", textUpdater(document.getElementById("red"))),
-        ];
-        loop(ticks, 10);
+        load(document.getElementById("game"));
+        //start({goal: 100, goalSizePercent: 10, cycleLengths: [1,7,14,31], algorithmName: "gaussian", algorithmParam: 1.5})
     </script>
 </body>
 </html>
