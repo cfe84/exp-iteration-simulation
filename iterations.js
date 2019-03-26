@@ -91,11 +91,18 @@ function textUpdater(element) {
     }
 }
 
-function updatePosition(cycleLength, generateDirectionForNextIteration = () => gaussianRand()* Math.PI) {
+function generateDirectionForNextIteration(interpretationPercent) {
+    const directionUnderstoodFromCustomer = gaussianRand() * Math.PI;
+    const misinterpretationPercent = (100 - interpretationPercent) / 100;
+    const misinterpretationFromCustomer = 2 * Math.PI * misinterpretationPercent * (Math.random() - .5);
+    return directionUnderstoodFromCustomer + misinterpretationFromCustomer;
+} 
+
+function updatePosition(cycleLength, interpretationPercent) {
     return (pos, goal) => {
         const directionToGoal = Math.atan2(goal.y - pos.y, goal.x - pos.x);
         const distanceToGoal = distance(pos, goal);
-        const directionForNextIteration = generateDirectionForNextIteration() + directionToGoal;
+        const directionForNextIteration = generateDirectionForNextIteration(interpretationPercent) + directionToGoal;
         const progressInThisCycle = cycleLength < distanceToGoal ? cycleLength : distanceToGoal;
         return {
                 x: pos.x + Math.cos(directionForNextIteration) * progressInThisCycle,
@@ -123,7 +130,9 @@ function loadTick(gameParameters, playerParameters) {
         maximums: { x: goal.x, y: maxY }
     }
 
-    const positionUpdater = updatePosition(playerParameters.cycleLengthInDays, gameParameters.directionGenerator);
+    const positionUpdater = updatePosition(
+        playerParameters.cycleLengthInDays, 
+        gameParameters.interpretationPercent);
 
     const tick = (day) => {
         state.day = day;
@@ -172,11 +181,6 @@ function gaussianRand() {
     return (result / 3.6);
 }
 
-const algorithms = {
-    "gaussian": () => () => gaussianRand() * Math.PI,
-    "random": (mid) => () => (Math.random() * mid - mid / 2) * Math.PI
-}
-
 const colorComponents = "ABC0123456789";
 const generateColor = () => {
     let res = "#";
@@ -195,78 +199,66 @@ const addPlayer = (color, cycleLengthInDays) => {
     return gameParameters;
 }
 
-function start({ canvas, results, goal, goalSizePercent, cycleLengths, algorithmName, algorithmParam = 1.5}) {
-    let ui = Ui(canvas);
-    ui.init({goalSizePercent, goal});
-    results.innerHTML = "";
-    const random = algorithms[algorithmName](algorithmParam);
-    
-    const gameParameters = {
-        goal,
-        goalSizePercent,
-        ui,
-        random
-    };
+function start(gameParameters, cycleLengths) {
+    gameParameters.ui = Ui(gameParameters.canvas);
+    gameParameters.ui.init(gameParameters);
+    gameParameters.results.innerHTML = "";
     const ticks = cycleLengths.map((cycleLength) => loadTick(gameParameters, addPlayer(generateColor(), cycleLength)));
     loop(ticks, 10);
+}
+
+function addInput(parentElement, preCaption, postCaption, properties) {
+    const element = document.createElement("p");
+    parentElement.appendChild(element);
+    const preCaptionElement = document.createElement("span");
+    element.appendChild(preCaptionElement);
+    preCaptionElement.innerHTML = preCaption;
+    const input = document.createElement("input");
+    element.appendChild(input);
+    for(let propertyName in properties) {
+        input[propertyName] = properties[propertyName];
+    }
+    const postCaptionElement = document.createElement("span");
+    element.appendChild(postCaptionElement);
+    postCaptionElement.innerHTML = postCaption;
+    return input;
 }
 
 function load(rootElement) {
     const configurationElement = document.createElement("div");
     rootElement.appendChild(configurationElement);
 
-    const customerNeedElement = document.createElement("p");
-    configurationElement.appendChild(customerNeedElement);
-    const customerNeedCaption = document.createElement("span");
-    customerNeedElement.appendChild(customerNeedCaption);
-    customerNeedCaption.innerHTML = "I can determine what the customer needs ";
-    const customerNeedSelect = document.createElement("select");
-    customerNeedElement.appendChild(customerNeedSelect);
-    const customerNeedOptionGaussian = document.createElement("option");
-    customerNeedSelect.appendChild(customerNeedOptionGaussian);
-    customerNeedOptionGaussian.innerHTML = "relatively well (natural distribution)";
-    const customerNeedOptionRandom = document.createElement("option");
-    customerNeedSelect.appendChild(customerNeedOptionRandom);
-    customerNeedOptionRandom.innerHTML = "with relative uncertainty (biased pseudo-random)";
+    const goalInput = addInput(configurationElement,
+        "If things were perfect the project would take ",
+        " days.",
+        {
+            type: "number", min: 1,
+            value: 100
+        });
+    
+    const goalSizeInput = addInput(configurationElement,
+            "The customer needs a result within ",
+            "% of their scope (this is the size of your goal)",
+            {
+                type: "number", min: 1, max: 90,
+                value: 10
+            });
 
-    const goalElement = document.createElement("p");
-    configurationElement.appendChild(goalElement);
-    const goalCaption = document.createElement("span");
-    goalElement.appendChild(goalCaption);
-    goalCaption.innerHTML = "If things were perfect the project would take ";
-    const goalInput = document.createElement("input");
-    goalElement.appendChild(goalInput);
-    goalInput.type = "number";
-    goalInput.value = 200;
-    const goalCaptionEnd = document.createElement("span");
-    goalElement.appendChild(goalCaptionEnd);
-    goalCaptionEnd.innerHTML = " days.";
-    
-    const goalSizeElement = document.createElement("p");
-    configurationElement.appendChild(goalSizeElement);
-    const goalSizeCaption = document.createElement("span");
-    goalSizeElement.appendChild(goalSizeCaption);
-    goalSizeCaption.innerHTML = "The customer needs a result within ";
-    const goalSizeInput = document.createElement("input");
-    goalSizeElement.appendChild(goalSizeInput);
-    goalSizeInput.type = "number";
-    goalSizeInput.value = 10;
-    const goalSizeCaptionEnd = document.createElement("span");
-    goalSizeElement.appendChild(goalSizeCaptionEnd);
-    goalSizeCaptionEnd.innerHTML = "% of their scope (this is the size of your goal)";
-    
-    const cycleTimesElement = document.createElement("p");
-    configurationElement.appendChild(cycleTimesElement);
-    const cycleTimesCaption = document.createElement("span");
-    cycleTimesElement.appendChild(cycleTimesCaption);
-    cycleTimesCaption.innerHTML = "I want to see cycles ";
-    const cycleTimesInput = document.createElement("input");
-    cycleTimesElement.appendChild(cycleTimesInput);
-    cycleTimesInput.type = "text";
-    cycleTimesInput.value = "1, 7, 14, 31";
-    const cycleTimesCaptionEnd = document.createElement("span");
-    cycleTimesElement.appendChild(cycleTimesCaptionEnd);
-    cycleTimesCaptionEnd.innerHTML = " day-long (comma separated list)";
+    const cycleTimesInput = addInput(configurationElement,
+        "I want to see cycles ",
+        " day-long (comma separated list)",
+        {
+            type: "text",
+            value: "1, 7, 14, 31"
+        });
+
+    const interpretationPercentInput = addInput(configurationElement, 
+        "What I understand from the customer is ",
+        "% what they actually need (level of randomness)",
+        { 
+            type: "number", min: 0, max: 100,
+            value: 100
+        });
 
     const startButton = document.createElement("button");
     configurationElement.appendChild(startButton);
@@ -285,19 +277,15 @@ function load(rootElement) {
     startButton.onclick = () => {
         const goal = goalInput.value;
         const goalSizePercent = goalSizeInput.value;
-        const algorithmName = 
-            customerNeedSelect.selectedOptions[0] === customerNeedOptionGaussian ? "gaussian"
-                : "random";
-        const algorithmParam =  1.5;
         const cycleLengths = cycleTimesInput.value.split(",").map((val) => val.trim());
+        const interpretationPercent = interpretationPercentInput.value;
         start( {
             canvas,
             results,
             goal,
             goalSizePercent,
-            algorithmName,
-            algorithmParam,
-            cycleLengths
-         } );
+            interpretationPercent
+         },
+            cycleLengths);
     }
 }
