@@ -2,7 +2,7 @@ function Ui(canvas) {
     const defaultColor = "black";
     const textSize = 12;
     const defaultFont = `${textSize}px Georgia`;
-    const finishXRelativeMargin = 1/5;
+    const finishXRelativeMargin = 1/7;
     const startXRelativeMargin = 1/5;
     let canvasContext, xUsableSpace, yUsableSpace, startXmargin, finishXmargin;
 
@@ -287,7 +287,14 @@ function addInput(parentElement, preCaption, postCaption, properties) {
     return input;
 }
 
-function load(rootElement) {
+function load(rootElement, { 
+        directlyLaunch = false, 
+        directlyRepeat = false,
+        defaultGoal = 100,
+        defaultGoalSizePercent = 5,
+        defaultCycleTimes = "1, 7, 14, 31",
+        defaultInterpretationPercent = 100
+    }) {
     const configurationElement = document.createElement("div");
     rootElement.appendChild(configurationElement);
 
@@ -296,7 +303,7 @@ function load(rootElement) {
         " days.",
         {
             type: "number", min: 1,
-            value: 100
+            value: defaultGoal
         });
     
     const goalSizeInput = addInput(configurationElement,
@@ -304,7 +311,7 @@ function load(rootElement) {
             "% of their scope (this is the size of your goal)",
             {
                 type: "number", min: 1, max: 90,
-                value: 10
+                value: defaultGoalSizePercent
             });
 
     const cycleTimesInput = addInput(configurationElement,
@@ -312,7 +319,7 @@ function load(rootElement) {
         " day-long (comma separated list)",
         {
             type: "text",
-            value: "1, 7, 14, 31"
+            value: defaultCycleTimes
         });
 
     const interpretationPercentInput = addInput(configurationElement, 
@@ -320,7 +327,7 @@ function load(rootElement) {
         "% what they actually need (level of randomness)",
         { 
             type: "number", min: 0, max: 100,
-            value: 100
+            value: defaultInterpretationPercent
         });
 
     const startButton = document.createElement("button");
@@ -367,23 +374,35 @@ function load(rootElement) {
             cycleLengths);
     }
 
-    startButton.onclick = () => {
-        launch();
-    }
-
-    repeatButton.onclick = () => {
+    function launchWithRepeat() {
         if (repeat) {
             repeat = false;
             repeatButton.innerHTML = "Repeat";
+            startButton.style.visibility = "visible";
         } else {
             repeatButton.innerHTML = "Stop";
+            startButton.style.visibility = "hidden";
             repeat = true;
             launch(true);
         }
     }
 
+    startButton.onclick = () => {
+        launch();
+    }
+
+    repeatButton.onclick = () => {
+        launchWithRepeat();
+    }
+
     clearScoresButton.onclick = () => {
         scores = [];
         scoresTableElement.innerHTML = "";
+    }
+
+    if (directlyLaunch) {
+        launch();
+    } else if (directlyRepeat) {
+        launchWithRepeat();
     }
 }
